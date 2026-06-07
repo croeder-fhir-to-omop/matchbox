@@ -105,6 +105,11 @@ public class MatchboxStructureMapUtilities extends StructureMapUtilities {
 		} else
 			throw new FHIRException("Unable to translate source " + source.fhirType());
 
+		if (conceptMapUrl == null || conceptMapUrl.isEmpty()) {
+			if (getServices() != null)
+				return getServices().translate(context.getAppInfo(), src, conceptMapUrl);
+			return null;
+		}
 		String su = conceptMapUrl;
 		if (conceptMapUrl.equals("http://hl7.org/fhir/ConceptMap/special-oid2uri")) {
 			String uri = this.contextUtilites.oid2Uri(src.getCode());
