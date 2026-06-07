@@ -67,6 +67,8 @@ public class ConceptMapEngine {
   }
 
   public Coding translate(Coding source, String url) throws FHIRException {
+    if (url == null || url.isEmpty())
+      return translateViaTxServer(source, null);
     ConceptMap cm = context.fetchResource(ConceptMap.class, url);
     if (cm == null)
       throw new FHIRException("Unable to find ConceptMap '"+url+"'");
@@ -102,7 +104,7 @@ public class ConceptMapEngine {
 
       String system = source.hasSystem() ? source.getSystem() : null;
       String targetsystem = null;
-      if (!cm.getGroup().isEmpty()) {
+      if (cm != null && !cm.getGroup().isEmpty()) {
         ConceptMapGroupComponent group = cm.getGroup().get(0);
         if (system == null && group.hasSource()) system = group.getSource();
         if (group.hasTarget()) targetsystem = group.getTarget();
@@ -128,7 +130,7 @@ public class ConceptMapEngine {
         }
       }
     } catch (Exception e) {
-      log.warn("Terminology server translate failed for ConceptMap {} code {}: {}: {}", cm.getUrl(), source.getCode(), e.getClass().getName(), e.getMessage());
+      log.warn("Terminology server translate failed for ConceptMap {} code {}: {}: {}", cm != null ? cm.getUrl() : "null", source.getCode(), e.getClass().getName(), e.getMessage());
     }
     return null;
   }
