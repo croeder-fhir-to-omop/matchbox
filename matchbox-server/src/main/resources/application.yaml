@@ -94,7 +94,7 @@ matchbox:
       # local    - use only the ConceptMaps loaded from IGs, no terminology server
       # fallback - use local ConceptMaps first, fall back to tx server on a miss
       # server   - always use the tx server, bypass local ConceptMaps entirely
-      translateMode: server
+      translateMode: fallback
       onlyOneEngine: true
       igsPreloaded: 
         - hl7.fhir.uv.omop#1.0.0
