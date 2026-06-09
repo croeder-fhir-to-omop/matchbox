@@ -168,8 +168,39 @@ public class ConceptMapEngine {
     return relationship != null && relationship != ConceptMapRelationship.NOTRELATEDTO;
   }
 
-  private Coding translateBySystem(ConceptMap cm, String system, String code) {
-    throw new Error("Not done yet");
+  private Coding translateBySystem(ConceptMap cm, String system, String code) throws FHIRException {
+    SourceElementComponent ct = null;
+    ConceptMapGroupComponent cg = null;
+    for (ConceptMapGroupComponent g : cm.getGroup()) {
+      // Skip groups whose declared source system doesn't match
+      if (g.hasSource() && !system.equals(g.getSource())) {
+        continue;
+      }
+      for (SourceElementComponent e : g.getElement()) {
+        if (code.equals(e.getCode())) {
+          if (ct != null)
+            throw new FHIRException("Unable to process translate " + code +
+                " because multiple candidate matches were found in concept map " + cm.getUrl());
+          ct = e;
+          cg = g;
+        }
+      }
+    }
+    if (ct == null)
+      return null;
+    TargetElementComponent tt = null;
+    for (TargetElementComponent t : ct.getTarget()) {
+      if (!t.hasDependsOn() && !t.hasProduct() && isOkRelationship(t.getRelationship())) {
+        if (tt != null)
+          throw new FHIRException("Unable to process translate " + code +
+              " because multiple targets were found in concept map " + cm.getUrl());
+        tt = t;
+      }
+    }
+    if (tt == null)
+      return null;
+    CanonicalPair cp = new CanonicalPair(cg.getTarget());
+    return new Coding().setSystem(cp.getUrl()).setVersion(cp.getVersion()).setCode(tt.getCode()).setDisplay(tt.getDisplay());
   }
 
 }
