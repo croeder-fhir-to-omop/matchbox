@@ -509,8 +509,10 @@ public class MatchboxEngineSupport {
 	 */
 	private void configureValidationEngine(final MatchboxEngine validator,
 														final CliContext cli) throws MatchboxEngineCreationException {
-		log.info("Terminology server {}, translateMode {}", cli.getTxServer(), cli.getTranslateMode());
+		log.info("Terminology server {}, translateMode {}, omopIdSalt configured: {}",
+				cli.getTxServer(), cli.getTranslateMode(), !cli.getOmopIdSalt().isEmpty());
 		validator.setTranslateMode(ch.ahdis.matchbox.engine.MatchboxEngine.TranslateMode.fromString(cli.getTranslateMode()));
+		ch.ahdis.matchbox.mappinglanguage.OmopIdRegistry.setSalt(cli.getOmopIdSalt());
 		if (cli.getTxServer() == null) {
 			throw new MatchboxEngineCreationException("Terminology server is not set, you need to set it in the configuration file.");
 		}

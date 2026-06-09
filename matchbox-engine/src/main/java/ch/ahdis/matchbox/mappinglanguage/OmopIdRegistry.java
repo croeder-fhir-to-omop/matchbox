@@ -16,6 +16,7 @@ import java.security.NoSuchAlgorithmException;
  * - FK consistency: stableId("Patient","x") returns the same value from any table.
  * - Resource-type isolated: stableId("Patient","x") != stableId("Measurement","x").
  * - Range: 1 <= id < 2_000_000_000 (fits OMOP INTEGER / 32-bit signed).
+ * - Deployment-isolated when a non-empty salt is configured via {@link #setSalt}.
  *
  * See fhir-omop-ig#11.
  */
@@ -23,7 +24,24 @@ public class OmopIdRegistry {
 
     public static final String URL_PREFIX = "http://omop/id-registry/";
 
+    private static String salt = "";
+
     private OmopIdRegistry() {}
+
+    /**
+     * Sets a deployment-specific salt prepended to every hash key.
+     * When empty (the default), behaviour is identical to the no-salt version,
+     * preserving backward compatibility. Set once at application startup via
+     * {@code matchbox.omopIdSalt} in application.yaml.
+     */
+    public static void setSalt(String value) {
+        salt = (value != null) ? value : "";
+    }
+
+    /** Returns the current salt (empty string when not configured). */
+    public static String getSalt() {
+        return salt;
+    }
 
     /**
      * Returns a stable integer ID for the given FHIR resource type and ID.
@@ -33,8 +51,10 @@ public class OmopIdRegistry {
      * @return deterministic positive long in range [1, 2_000_000_000)
      */
     public static long stableId(String resourceType, String fhirId) {
-        String key = (resourceType != null ? resourceType : "") + ":"
-                   + (fhirId       != null ? fhirId       : "");
+        String base = (resourceType != null ? resourceType : "") + ":"
+                    + (fhirId       != null ? fhirId       : "");
+        // Only prepend salt when non-empty — preserves existing IDs for unsalted deployments
+        String key = salt.isEmpty() ? base : salt + ":" + base;
         try {
             byte[] hash = MessageDigest.getInstance("SHA-256")
                 .digest(key.getBytes(StandardCharsets.UTF_8));

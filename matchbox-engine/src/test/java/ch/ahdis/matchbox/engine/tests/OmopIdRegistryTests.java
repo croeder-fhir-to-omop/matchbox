@@ -2,6 +2,7 @@ package ch.ahdis.matchbox.engine.tests;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -164,6 +165,86 @@ class OmopIdRegistryTests {
         @DisplayName("SHOULD handle null reference without throwing")
         void test_WHEN_reference_is_null_SHOULD_not_throw() {
             assertDoesNotThrow(() -> OmopIdRegistry.stableIdFromReference("Patient", null));
+        }
+    }
+
+    @Nested
+    @DisplayName("WHEN a deployment salt is configured")
+    class SaltBehavior {
+
+        @AfterEach
+        void resetSalt() {
+            OmopIdRegistry.setSalt("");
+        }
+
+        @Test
+        @DisplayName("SHOULD produce a different ID than the unsalted value")
+        void test_WHEN_salt_is_set_SHOULD_differ_from_unsalted() {
+            long unsalted = OmopIdRegistry.stableId("Patient", "pat-1");
+            OmopIdRegistry.setSalt("deployment-A");
+            long salted = OmopIdRegistry.stableId("Patient", "pat-1");
+            assertNotEquals(unsalted, salted,
+                "Salted ID must differ from unsalted ID for the same input");
+        }
+
+        @Test
+        @DisplayName("SHOULD produce different IDs for different salts")
+        void test_WHEN_different_salts_SHOULD_produce_different_ids() {
+            OmopIdRegistry.setSalt("org-A");
+            long idA = OmopIdRegistry.stableId("Patient", "pat-1");
+            OmopIdRegistry.setSalt("org-B");
+            long idB = OmopIdRegistry.stableId("Patient", "pat-1");
+            assertNotEquals(idA, idB,
+                "Different salts must produce different IDs for the same FHIR input");
+        }
+
+        @Test
+        @DisplayName("SHOULD remain deterministic: same salt + same input → same ID")
+        void test_WHEN_same_salt_and_input_SHOULD_be_deterministic() {
+            OmopIdRegistry.setSalt("my-salt");
+            long first  = OmopIdRegistry.stableId("Patient", "pat-1");
+            long second = OmopIdRegistry.stableId("Patient", "pat-1");
+            assertEquals(first, second,
+                "stableId must be deterministic for a given salt");
+        }
+
+        @Test
+        @DisplayName("SHOULD preserve FK consistency under a salt: same patient ID from any table")
+        void test_WHEN_salt_set_SHOULD_preserve_fk_consistency() {
+            OmopIdRegistry.setSalt("shared-salt");
+            long fromPerson      = OmopIdRegistry.stableId("Patient", "pat-xyz");
+            long fromMeasurement = OmopIdRegistry.stableId("Patient", "pat-xyz");
+            assertEquals(fromPerson, fromMeasurement,
+                "FK consistency must hold under a salt: same input always yields same integer");
+        }
+
+        @Test
+        @DisplayName("SHOULD preserve backward compat: empty salt produces same IDs as no-salt")
+        void test_WHEN_salt_is_empty_SHOULD_equal_unsalted_behavior() {
+            long withoutCall = OmopIdRegistry.stableId("Patient", "pat-abc");
+            OmopIdRegistry.setSalt("");
+            long withEmptySalt = OmopIdRegistry.stableId("Patient", "pat-abc");
+            assertEquals(withoutCall, withEmptySalt,
+                "Empty salt must produce the same IDs as the default (no setSalt call)");
+        }
+
+        @Test
+        @DisplayName("SHOULD treat null salt same as empty string")
+        void test_WHEN_salt_is_null_SHOULD_behave_like_empty() {
+            long baseline = OmopIdRegistry.stableId("Patient", "pat-1");
+            OmopIdRegistry.setSalt(null);
+            assertEquals("", OmopIdRegistry.getSalt(), "null salt should normalise to empty string");
+            assertEquals(baseline, OmopIdRegistry.stableId("Patient", "pat-1"),
+                "null salt should produce same IDs as default");
+        }
+
+        @Test
+        @DisplayName("SHOULD stay within OMOP integer range when salted")
+        void test_WHEN_salted_SHOULD_stay_within_omop_range() {
+            OmopIdRegistry.setSalt("range-test-salt");
+            long id = OmopIdRegistry.stableId("Measurement", "obs-99");
+            assertTrue(id > 0 && id < 2_000_000_000L,
+                "Salted ID must remain in OMOP safe integer range, got " + id);
         }
     }
 
