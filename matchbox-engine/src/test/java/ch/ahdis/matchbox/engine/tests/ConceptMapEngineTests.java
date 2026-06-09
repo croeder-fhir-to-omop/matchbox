@@ -254,38 +254,48 @@ class ConceptMapEngineTests {
 
 
 	// ─── Group 3: translate(source, url) where ConceptMap is not in context ───
+	//
+	// FALLBACK and SERVER modes route to the tx server when the local CM is absent.
+	// LOCAL mode throws because it must not contact the server.
+	// No tx client is configured in unit tests, so tx-server paths return null.
 
 	@Nested
 	@DisplayName("WHEN translate is called with a url for a ConceptMap not in the context")
 	class WhenConceptMapNotFound {
 
 		@Test
-		@DisplayName("SHOULD throw FHIRException when ConceptMap url is not registered")
-		void SHOULD_throw_FHIRException_for_missing_url() {
+		@DisplayName("SHOULD return null in FALLBACK mode — routes to tx server (no client configured)")
+		void SHOULD_return_null_in_FALLBACK_mode_for_missing_url() throws FHIRException {
 			ConceptMapEngine cme = new ConceptMapEngine(ctx, FALLBACK);
+			Coding source = new Coding().setCode(KNOWN_CODE);
+			assertNull(cme.translate(source, "http://example.org/cm/missing"));
+		}
+
+		@Test
+		@DisplayName("SHOULD return null in SERVER mode — routes to tx server (no client configured)")
+		void SHOULD_return_null_in_SERVER_mode_for_missing_url() throws FHIRException {
+			ConceptMapEngine cme = new ConceptMapEngine(ctx, SERVER);
+			Coding source = new Coding().setSystem(SOURCE_SYSTEM).setCode(KNOWN_CODE);
+			assertNull(cme.translate(source, "http://example.org/cm/missing"));
+		}
+
+		@Test
+		@DisplayName("SHOULD throw FHIRException in LOCAL mode — local-only must not contact server")
+		void SHOULD_throw_FHIRException_in_LOCAL_mode_for_missing_url() {
+			ConceptMapEngine cme = new ConceptMapEngine(ctx, LOCAL);
 			Coding source = new Coding().setCode(KNOWN_CODE);
 			assertThrows(FHIRException.class,
 				() -> cme.translate(source, "http://example.org/cm/missing"));
 		}
 
 		@Test
-		@DisplayName("SHOULD include the missing url in the FHIRException message")
-		void SHOULD_include_missing_url_in_exception_message() {
-			ConceptMapEngine cme = new ConceptMapEngine(ctx, FALLBACK);
+		@DisplayName("SHOULD include the missing url in the FHIRException message (LOCAL mode)")
+		void SHOULD_include_missing_url_in_LOCAL_exception_message() {
+			ConceptMapEngine cme = new ConceptMapEngine(ctx, LOCAL);
 			String missingUrl = "http://example.org/cm/absolutely-missing";
 			FHIRException ex = assertThrows(FHIRException.class,
 				() -> cme.translate(new Coding().setCode(KNOWN_CODE), missingUrl));
 			assertTrue(ex.getMessage().contains(missingUrl));
-		}
-
-		@Test
-		@DisplayName("SHOULD throw FHIRException even in SERVER mode — fetchResource runs before mode check")
-		void SHOULD_throw_FHIRException_in_SERVER_mode_for_missing_url() {
-			// SERVER mode cannot bypass the null-ConceptMap guard.
-			ConceptMapEngine cme = new ConceptMapEngine(ctx, SERVER);
-			Coding source = new Coding().setSystem(SOURCE_SYSTEM).setCode(KNOWN_CODE);
-			assertThrows(FHIRException.class,
-				() -> cme.translate(source, "http://example.org/cm/missing"));
 		}
 	}
 

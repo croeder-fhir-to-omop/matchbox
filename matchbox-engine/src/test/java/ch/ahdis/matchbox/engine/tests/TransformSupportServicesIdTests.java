@@ -128,14 +128,15 @@ class TransformSupportServicesIdTests {
     class NonRegistryUrl {
 
         @Test
-        @DisplayName("SHOULD NOT intercept — should fall through to ConceptMapEngine")
-        void test_WHEN_non_registry_url_SHOULD_not_intercept() {
-            // A ConceptMap that doesn't exist → ConceptMapEngine throws or returns null
-            // The key assertion is that it does NOT return a numeric id-registry code
-            assertThrows(FHIRException.class, () ->
-                svc.translate(null, coding("some-code"),
-                    "http://hl7.org/fhir/uv/omop/ConceptMap/NonExistent")
-            );
+        @DisplayName("SHOULD NOT intercept — should fall through to ConceptMapEngine and return null (FALLBACK + no tx client)")
+        void test_WHEN_non_registry_url_SHOULD_not_intercept() throws FHIRException {
+            // A ConceptMap that doesn't exist → ConceptMapEngine in FALLBACK mode tries
+            // the tx server, which returns null when no client is configured.
+            // The key assertion is that it does NOT return a numeric id-registry code.
+            Coding result = svc.translate(null, coding("some-code"),
+                    "http://hl7.org/fhir/uv/omop/ConceptMap/NonExistent");
+            assertNull(result,
+                "Expected null (tx server fallback with no client), not an id-registry code");
         }
     }
 

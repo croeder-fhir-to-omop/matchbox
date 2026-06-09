@@ -70,8 +70,13 @@ public class ConceptMapEngine {
     if (url == null || url.isEmpty())
       return translateViaTxServer(source, null);
     ConceptMap cm = context.fetchResource(ConceptMap.class, url);
-    if (cm == null)
+    if (cm == null) {
+      if (translateMode == MatchboxEngine.TranslateMode.FALLBACK || translateMode == MatchboxEngine.TranslateMode.SERVER) {
+        log.debug("ConceptMap '{}' not found locally; routing to terminology server (mode={})", url, translateMode);
+        return translateViaTxServer(source, null);
+      }
       throw new FHIRException("Unable to find ConceptMap '"+url+"'");
+    }
     if (translateMode == MatchboxEngine.TranslateMode.SERVER)
       return translateViaTxServer(source, cm);
     Coding result;
