@@ -88,6 +88,14 @@ public class TransformSupportServices implements ITransformerServices {
 
   @Override
   public Coding translate(Object appInfo, Coding source, String conceptMapUrl) throws FHIRException {
+    if (OmopIdRegistry.isIdRegistryUrl(conceptMapUrl)) {
+      String resourceType = OmopIdRegistry.resourceTypeFromUrl(conceptMapUrl);
+      String reference    = source != null ? source.getCode() : null;
+      long   id           = OmopIdRegistry.stableIdFromReference(resourceType, reference);
+      return new Coding()
+          .setSystem("http://omop/id-registry")
+          .setCode(String.valueOf(id));
+    }
     ConceptMapEngine cme = new ConceptMapEngine(context, translateMode);
     return cme.translate(source, conceptMapUrl);
   }
