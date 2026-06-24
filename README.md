@@ -1,5 +1,12 @@
 # Matchbox
 
+> **This is a fork of [ahdis/matchbox](https://github.com/ahdis/matchbox) used in the
+> [croeder-fhir-to-omop](https://github.com/croeder-fhir-to-omop) FHIR→OMOP pipeline.
+> See the [organization README](https://github.com/croeder-fhir-to-omop) for pipeline
+> context and usage instructions. The upstream matchbox documentation follows below.**
+
+---
+
 [Matchbox](https://matchbox.health) is a FHIR server based on the [hapifhir/hapi-fhir-jpaserver-starter](https://github.com/hapifhir/hapi-fhir-jpaserver-starter)
 
 - (pre-)load FHIR implementation guides from the package server for conformance resources (StructureMap, Questionnaire, CodeSystem, ValueSet, ConceptMap, NamingSystem, StructureDefinition). The "with-preload" subfolder contains an example with the implementation guides provided for the [public test server](https://test.ahdis.ch/matchbox/fhir).
