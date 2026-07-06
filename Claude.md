@@ -1,5 +1,7 @@
 # Matchbox Project Overview
 
+Project-wide rules for all croeder-fhir-to-omop repos: @../.github/CLAUDE.md
+
 ## What is Matchbox?
 
 Matchbox validation and mapping platform that provides:
