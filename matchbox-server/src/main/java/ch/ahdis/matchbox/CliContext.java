@@ -130,6 +130,9 @@ public class CliContext {
   @JsonProperty("translateMode")
   private String translateMode = "fallback";
 
+  @JsonProperty("omopIdSalt")
+  private String omopIdSalt = "";
+
   // @JsonProperty("sv")
   // private String sv = null;
   // @JsonProperty("mapLog")
@@ -421,6 +424,14 @@ public class CliContext {
 
   public void setTranslateMode(String translateMode) {
     this.translateMode = translateMode;
+  }
+
+  public String getOmopIdSalt() {
+    return omopIdSalt;
+  }
+
+  public void setOmopIdSalt(String omopIdSalt) {
+    this.omopIdSalt = (omopIdSalt != null) ? omopIdSalt : "";
   }
 
   public boolean isDoNative() {

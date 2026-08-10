@@ -254,38 +254,48 @@ class ConceptMapEngineTests {
 
 
 	// ─── Group 3: translate(source, url) where ConceptMap is not in context ───
+	//
+	// FALLBACK and SERVER modes route to the tx server when the local CM is absent.
+	// LOCAL mode throws because it must not contact the server.
+	// No tx client is configured in unit tests, so tx-server paths return null.
 
 	@Nested
 	@DisplayName("WHEN translate is called with a url for a ConceptMap not in the context")
 	class WhenConceptMapNotFound {
 
 		@Test
-		@DisplayName("SHOULD throw FHIRException when ConceptMap url is not registered")
-		void SHOULD_throw_FHIRException_for_missing_url() {
+		@DisplayName("SHOULD return null in FALLBACK mode — routes to tx server (no client configured)")
+		void SHOULD_return_null_in_FALLBACK_mode_for_missing_url() throws FHIRException {
 			ConceptMapEngine cme = new ConceptMapEngine(ctx, FALLBACK);
+			Coding source = new Coding().setCode(KNOWN_CODE);
+			assertNull(cme.translate(source, "http://example.org/cm/missing"));
+		}
+
+		@Test
+		@DisplayName("SHOULD return null in SERVER mode — routes to tx server (no client configured)")
+		void SHOULD_return_null_in_SERVER_mode_for_missing_url() throws FHIRException {
+			ConceptMapEngine cme = new ConceptMapEngine(ctx, SERVER);
+			Coding source = new Coding().setSystem(SOURCE_SYSTEM).setCode(KNOWN_CODE);
+			assertNull(cme.translate(source, "http://example.org/cm/missing"));
+		}
+
+		@Test
+		@DisplayName("SHOULD throw FHIRException in LOCAL mode — local-only must not contact server")
+		void SHOULD_throw_FHIRException_in_LOCAL_mode_for_missing_url() {
+			ConceptMapEngine cme = new ConceptMapEngine(ctx, LOCAL);
 			Coding source = new Coding().setCode(KNOWN_CODE);
 			assertThrows(FHIRException.class,
 				() -> cme.translate(source, "http://example.org/cm/missing"));
 		}
 
 		@Test
-		@DisplayName("SHOULD include the missing url in the FHIRException message")
-		void SHOULD_include_missing_url_in_exception_message() {
-			ConceptMapEngine cme = new ConceptMapEngine(ctx, FALLBACK);
+		@DisplayName("SHOULD include the missing url in the FHIRException message (LOCAL mode)")
+		void SHOULD_include_missing_url_in_LOCAL_exception_message() {
+			ConceptMapEngine cme = new ConceptMapEngine(ctx, LOCAL);
 			String missingUrl = "http://example.org/cm/absolutely-missing";
 			FHIRException ex = assertThrows(FHIRException.class,
 				() -> cme.translate(new Coding().setCode(KNOWN_CODE), missingUrl));
 			assertTrue(ex.getMessage().contains(missingUrl));
-		}
-
-		@Test
-		@DisplayName("SHOULD throw FHIRException even in SERVER mode — fetchResource runs before mode check")
-		void SHOULD_throw_FHIRException_in_SERVER_mode_for_missing_url() {
-			// SERVER mode cannot bypass the null-ConceptMap guard.
-			ConceptMapEngine cme = new ConceptMapEngine(ctx, SERVER);
-			Coding source = new Coding().setSystem(SOURCE_SYSTEM).setCode(KNOWN_CODE);
-			assertThrows(FHIRException.class,
-				() -> cme.translate(source, "http://example.org/cm/missing"));
 		}
 	}
 
@@ -314,8 +324,8 @@ class ConceptMapEngineTests {
 		@Test
 		@DisplayName("SHOULD bypass local lookup and return null (no tx client) when source has system")
 		void SHOULD_bypass_local_and_return_null_source_with_system() throws FHIRException {
-			// Source having a system would normally trigger translateBySystem (unimplemented, throws Error),
-			// but SERVER mode intercepts before that branch, so no Error is thrown.
+			// SERVER mode routes to translateViaTxServer before translateBySystem is consulted,
+			// so local concept map content is never examined.
 			ConceptMapEngine cme = new ConceptMapEngine(ctx, SERVER);
 			Coding source = new Coding().setSystem(SOURCE_SYSTEM).setCode(KNOWN_CODE);
 			assertNull(cme.translate(source, CM_BASIC_URL));
@@ -323,49 +333,70 @@ class ConceptMapEngineTests {
 	}
 
 
-	// ─── Group 5: translate when source.hasSystem() == true, LOCAL or FALLBACK mode
+	// ─── Group 5: translateBySystem — source Coding has a system, LOCAL or FALLBACK mode
 	//
 	// When source.hasSystem() is true and translateMode is not SERVER, routing calls
-	// translateBySystem(cm, system, code), which throws Error("Not done yet").
-	//
-	// Error is a java.lang.Error, not Exception or FHIRException. It is unchecked and
-	// is NOT caught anywhere in translate(). It propagates straight to the caller.
-	//
-	// FALLBACK mode's fallback-to-tx-server line reads:
-	//   if (result == null && translateMode == FALLBACK)
-	// That line is never reached because translateBySystem throws before returning.
-	// So FALLBACK mode does NOT silently try Echidna here — it blows up just like LOCAL.
+	// translateBySystem(cm, system, code). Groups whose declared source system does
+	// not match the Coding system are skipped; the rest are searched by code value.
 
 	@Nested
 	@DisplayName("WHEN source Coding has a system set and translateMode is LOCAL or FALLBACK")
 	class WhenSourceHasSystemLocalOrFallback {
 
 		@Test
-		@DisplayName("SHOULD throw Error in LOCAL mode because translateBySystem is not yet implemented")
-		void SHOULD_throw_Error_in_LOCAL_mode() {
+		@DisplayName("SHOULD return correct Coding when code is found in matching source-system group (LOCAL)")
+		void SHOULD_return_correct_coding_for_known_code_local() throws FHIRException {
 			ConceptMapEngine cme = new ConceptMapEngine(ctx, LOCAL);
 			Coding source = new Coding().setSystem(SOURCE_SYSTEM).setCode(KNOWN_CODE);
-			assertThrows(Error.class, () -> cme.translate(source, CM_BASIC_URL));
+			Coding result = cme.translate(source, CM_BASIC_URL);
+			assertNotNull(result);
+			assertEquals(TARGET_CODE, result.getCode());
+			assertEquals(TARGET_SYSTEM, result.getSystem());
 		}
 
 		@Test
-		@DisplayName("SHOULD throw Error in FALLBACK mode — Error propagates before the fallback-to-tx-server check")
-		void SHOULD_throw_Error_in_FALLBACK_mode() {
-			// A user might expect FALLBACK to silently try Echidna when local fails.
-			// That only works when translateByJustCode returns null.
-			// When translateBySystem throws Error (as it always does), the
-			// `if (result == null && FALLBACK)` line is never reached.
+		@DisplayName("SHOULD return correct Coding when code is found in matching source-system group (FALLBACK)")
+		void SHOULD_return_correct_coding_for_known_code_fallback() throws FHIRException {
 			ConceptMapEngine cme = new ConceptMapEngine(ctx, FALLBACK);
 			Coding source = new Coding().setSystem(SOURCE_SYSTEM).setCode(KNOWN_CODE);
-			assertThrows(Error.class, () -> cme.translate(source, CM_BASIC_URL));
+			Coding result = cme.translate(source, CM_BASIC_URL);
+			assertNotNull(result);
+			assertEquals(TARGET_CODE, result.getCode());
 		}
 
 		@Test
-		@DisplayName("SHOULD throw Error for an unknown code — translateBySystem throws regardless of whether the code exists")
-		void SHOULD_throw_Error_even_for_unknown_code_in_FALLBACK_mode() {
+		@DisplayName("SHOULD return null for unknown code (FALLBACK with no tx client)")
+		void SHOULD_return_null_for_unknown_code_fallback() throws FHIRException {
 			ConceptMapEngine cme = new ConceptMapEngine(ctx, FALLBACK);
 			Coding source = new Coding().setSystem(SOURCE_SYSTEM).setCode(UNKNOWN_CODE);
-			assertThrows(Error.class, () -> cme.translate(source, CM_BASIC_URL));
+			// translateBySystem returns null → tx fallback returns null (no client)
+			assertNull(cme.translate(source, CM_BASIC_URL));
+		}
+
+		@Test
+		@DisplayName("SHOULD return null when source system does not match any group source")
+		void SHOULD_return_null_when_system_does_not_match_any_group() throws FHIRException {
+			ConceptMapEngine cme = new ConceptMapEngine(ctx, LOCAL);
+			// OTHER_SYSTEM is not SOURCE_SYSTEM, so the only group in CM_BASIC_URL is skipped
+			Coding source = new Coding().setSystem(OTHER_SYSTEM).setCode(KNOWN_CODE);
+			assertNull(cme.translate(source, CM_BASIC_URL));
+		}
+
+		@Test
+		@DisplayName("SHOULD throw FHIRException when code found in multiple groups with matching system")
+		void SHOULD_throw_when_code_found_in_multiple_matching_groups() {
+			ConceptMapEngine cme = new ConceptMapEngine(ctx, LOCAL);
+			// CM_MULTI_GROUP_URL has two groups both sourced from SOURCE_SYSTEM, both contain KNOWN_CODE
+			Coding source = new Coding().setSystem(SOURCE_SYSTEM).setCode(KNOWN_CODE);
+			assertThrows(FHIRException.class, () -> cme.translate(source, CM_MULTI_GROUP_URL));
+		}
+
+		@Test
+		@DisplayName("SHOULD return null for NOTRELATEDTO target when source has system")
+		void SHOULD_return_null_for_not_related_target() throws FHIRException {
+			ConceptMapEngine cme = new ConceptMapEngine(ctx, LOCAL);
+			Coding source = new Coding().setSystem(SOURCE_SYSTEM).setCode(KNOWN_CODE);
+			assertNull(cme.translate(source, CM_NOT_RELATED_URL));
 		}
 	}
 
